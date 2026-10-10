@@ -40,7 +40,8 @@ jobs:
       - name: Build Windows installer
         shell: pwsh
         run: |
-          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+          $iscc = Join-Path $programFilesX86 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) { throw "Inno Setup compiler not found at $iscc" }
           & $iscc installer/windows/EmberFat.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
