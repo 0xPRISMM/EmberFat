@@ -1,0 +1,52 @@
+name: Windows VST3 release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+      - name: Build EmberFat VST3 bundle
+        shell: pwsh
+        run: cargo xtask bundle emberfat --release
+      - name: Stage VST3 bundle
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem -Path target/bundled -Filter 'EmberFat.vst3' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $bundle) {
+            Get-ChildItem -Path target/bundled -Recurse | Select-Object FullName
+            throw 'EmberFat.vst3 was not found under target/bundled. Check NIH-plug bundler output.'
+          }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Path $bundle.FullName -Destination dist/EmberFat.vst3 -Recurse -Force
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "Inno Setup compiler not found at $iscc" }
+          & $iscc installer/windows/EmberFat.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+      - name: Upload VST3 and installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmberFat-Windows-${{ github.ref_name }}
+          path: |
+            dist/EmberFat.vst3
+            dist/EmberFat-Windows-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
