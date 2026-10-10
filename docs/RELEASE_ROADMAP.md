@@ -2,15 +2,15 @@
 
 ## Current
 
-- Windows CI runs workspace tests, builds the VST3 bundle, compiles the installer, and uploads both as a 30-day workflow artifact.
-- The GUI has four primary controls, drag and Shift-drag adjustment, double-click reset, bypass, and host parameter gestures.
+- Four focused controls: FAT, COLOR, MIX and OUTPUT, plus ACTIVE/BYPASSED comparison.
+- Silver circular dials, fixed material highlights, a moving indicator, six mascot stages and licensed Barlow labels.
+- Precise drag accumulation, Shift fine adjustment, typed values, keyboard and wheel control; host automation gestures are paired.
+- Windows CI checks formatting and interaction tests, then uses scripts/package-windows.ps1 to build and package the VST3.
+- The package includes font licensing, version/source details and an installer checksum.
 
 ## Before a public release
 
-- Validate the plugin in a supported DAW: bypass, dry/wet, automation, saved-state recall, stereo routing, and output level.
-- Verify installer install/uninstall behavior and rescan the plugin in common DAWs.
-- Synchronize the installer version with `plugin/Cargo.toml`.
-- Review NIH-plug and dependency licensing and add any required attributions.
-- Add versioned release notes and checksums. Consider code signing if a certificate is available.
-
-See the [Windows build workflow](https://github.com/0xPRISMM/EmberFat/actions/workflows/windows-release.yml) for current build artifacts.
+- Confirm bypass, dry/wet, automation, saved-state recall, stereo routing and levels in a supported DAW.
+- Confirm install/uninstall and plugin rescanning on the user's Windows system.
+- Review complete framework/dependency licensing and attribution for distribution.
+- Publish versioned release notes and permanent downloads. Add code signing when a certificate is available.
