@@ -1,0 +1,13 @@
+[package]
+name = "emberfat"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "A custom saturation effect for music production"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git" }
+nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }

@@ -1,0 +1,10 @@
+C:\Users\maxha\Downloads\emberfat_rust_vst3\emberfat_rust_vst3\target\release\deps\copypasta-6bf9333dbfc7ef05.d: C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\lib.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\common.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\windows_clipboard.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\nop_clipboard.rs
+
+C:\Users\maxha\Downloads\emberfat_rust_vst3\emberfat_rust_vst3\target\release\deps\libcopypasta-6bf9333dbfc7ef05.rlib: C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\lib.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\common.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\windows_clipboard.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\nop_clipboard.rs
+
+C:\Users\maxha\Downloads\emberfat_rust_vst3\emberfat_rust_vst3\target\release\deps\libcopypasta-6bf9333dbfc7ef05.rmeta: C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\lib.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\common.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\windows_clipboard.rs C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\nop_clipboard.rs
+
+C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\lib.rs:
+C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\common.rs:
+C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\windows_clipboard.rs:
+C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\copypasta-0.10.2\src\nop_clipboard.rs:
