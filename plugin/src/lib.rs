@@ -30,7 +30,7 @@ struct EmberFatParams {
 impl Default for EmberFatParams {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(560, 340),
+            editor_state: EguiState::from_size(720, 430),
             fat: FloatParam::new(
                 "Fat",
                 32.0,
@@ -101,51 +101,58 @@ impl Plugin for EmberFat {
             |ctx, _| {
                 let mut style = (*ctx.style()).clone();
                 style.visuals = egui::Visuals::dark();
-                style.visuals.window_fill = egui::Color32::from_rgb(18, 18, 22);
-                style.visuals.panel_fill = egui::Color32::from_rgb(18, 18, 22);
-                style.visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(38, 38, 45);
-                style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(65, 34, 39);
-                style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(125, 28, 39);
+                style.visuals.window_fill = egui::Color32::from_rgb(19, 20, 23);
+                style.visuals.panel_fill = egui::Color32::from_rgb(19, 20, 23);
+                style.visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(38, 39, 43);
+                style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(75, 40, 44);
+                style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(142, 42, 49);
+                style.spacing.item_spacing = egui::vec2(12.0, 10.0);
                 ctx.set_style(style);
             },
             move |ctx, setter, _| {
                 egui::CentralPanel::default()
-                    .frame(egui::Frame::new().fill(egui::Color32::from_rgb(18, 18, 22)).inner_margin(egui::Margin::same(18)))
+                    .frame(egui::Frame::new().fill(egui::Color32::from_rgb(19, 20, 23)).inner_margin(egui::Margin::same(22)))
                     .show(ctx, |ui| {
-                        ui.vertical_centered(|ui| {
-                            ui.label(
-                                egui::RichText::new("EMBERFAT")
-                                    .size(28.0)
-                                    .strong()
-                                    .color(egui::Color32::from_rgb(245, 70, 82)),
-                            );
-                            ui.label(
-                                egui::RichText::new("HARMONIC SATURATION")
-                                    .size(10.0)
-                                    .color(egui::Color32::from_rgb(155, 155, 165)),
-                            );
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("EMBERFAT").size(25.0).strong().color(egui::Color32::from_rgb(238, 82, 86)));
+                                ui.label(egui::RichText::new("HARMONIC SATURATION  /  VST3 EFFECT").size(10.0).strong().color(egui::Color32::from_rgb(139, 142, 148)));
+                            });
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(egui::RichText::new("●  STEREO").size(10.0).strong().color(egui::Color32::from_rgb(164, 169, 164)));
+                            });
                         });
-                        ui.add_space(18.0);
+                        ui.add_space(15.0);
+                        let line_y = ui.cursor().top();
+                        ui.painter().line_segment(
+                            [egui::pos2(ui.min_rect().left(), line_y), egui::pos2(ui.min_rect().right(), line_y)],
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 55, 59)),
+                        );
+                        ui.add_space(13.0);
 
-                        ui.horizontal_centered(|ui| {
-                            draw_knob(ui, "FAT", &params.fat, setter, egui::Color32::from_rgb(240, 55, 70));
-                            ui.add_space(10.0);
-                            draw_knob(ui, "COLOR", &params.color, setter, egui::Color32::from_rgb(240, 75, 85));
-                            ui.add_space(10.0);
-                            draw_knob(ui, "MIX", &params.mix, setter, egui::Color32::from_rgb(210, 55, 70));
-                            ui.add_space(10.0);
-                            draw_knob(ui, "OUTPUT", &params.output, setter, egui::Color32::from_rgb(175, 45, 60));
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 12.0;
+                            draw_knob(ui, "FAT", "DRIVE", &params.fat, setter, egui::Color32::from_rgb(239, 77, 81));
+                            draw_knob(ui, "COLOR", "HARMONICS", &params.color, setter, egui::Color32::from_rgb(226, 91, 82));
+                            draw_knob(ui, "MIX", "DRY / WET", &params.mix, setter, egui::Color32::from_rgb(205, 75, 79));
+                            draw_knob(ui, "OUTPUT", "LEVEL", &params.output, setter, egui::Color32::from_rgb(181, 67, 72));
                         });
 
-                        ui.add_space(12.0);
-                        ui.separator();
+                        ui.add_space(9.0);
+                        let line_y = ui.cursor().top();
+                        ui.painter().line_segment(
+                            [egui::pos2(ui.min_rect().left(), line_y), egui::pos2(ui.min_rect().right(), line_y)],
+                            egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 55, 59)),
+                        );
+                        ui.add_space(7.0);
                         ui.horizontal(|ui| {
                             let mut bypass = params.bypass.value();
-                            if ui.checkbox(&mut bypass, "BYPASS").changed() {
+                            let response = ui.checkbox(&mut bypass, "BYPASS EFFECT");
+                            if response.changed() {
                                 setter.set_parameter(&params.bypass, bypass);
                             }
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(egui::RichText::new("DRIVE • TONE • BLEND").size(10.0).color(egui::Color32::GRAY));
+                                ui.label(egui::RichText::new("DOUBLE CLICK A CONTROL TO RESET").size(9.0).strong().color(egui::Color32::from_rgb(111, 114, 120)));
                             });
                         });
                     });
@@ -204,13 +211,23 @@ impl Plugin for EmberFat {
 fn draw_knob(
     ui: &mut egui::Ui,
     label: &str,
+    descriptor: &str,
     param: &FloatParam,
     setter: &ParamSetter,
     accent: egui::Color32,
 ) {
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(100.0, 142.0), egui::Sense::click_and_drag());
-    let center = egui::pos2(rect.center().x, rect.top() + 48.0);
-    let radius = 31.0;
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(155.0, 218.0), egui::Sense::click_and_drag());
+    let painter = ui.painter();
+    let card_fill = if response.hovered() { egui::Color32::from_rgb(37, 38, 42) } else { egui::Color32::from_rgb(31, 32, 36) };
+    painter.rect_filled(rect, 9.0, card_fill);
+    painter.rect_stroke(
+        rect,
+        9.0,
+        egui::Stroke::new(1.0, if response.hovered() { egui::Color32::from_rgb(111, 61, 64) } else { egui::Color32::from_rgb(55, 56, 60) }),
+        egui::StrokeKind::Inside,
+    );
+    let center = egui::pos2(rect.center().x, rect.top() + 83.0);
+    let radius = 38.0;
     let range = param.range();
     let (min_value, max_value) = match range {
         FloatRange::Linear { min, max } => (min, max),
@@ -235,10 +252,11 @@ fn draw_knob(
     }
 
     let normalized = ((value - min_value) / (max_value - min_value)).clamp(0.0, 1.0);
-    let painter = ui.painter();
-    painter.circle_filled(center, radius + 5.0, egui::Color32::from_rgb(9, 9, 12));
-    painter.circle_filled(center, radius, egui::Color32::from_rgb(42, 42, 49));
-    painter.circle_stroke(center, radius, egui::Stroke::new(1.5_f32, egui::Color32::from_rgb(76, 76, 84)));
+    painter.circle_filled(center, radius + 8.0, egui::Color32::from_rgb(20, 21, 24));
+    painter.circle_stroke(center, radius + 7.0, egui::Stroke::new(1.0, egui::Color32::from_rgb(69, 70, 74)));
+    painter.circle_filled(center, radius, egui::Color32::from_rgb(48, 49, 53));
+    painter.circle_stroke(center, radius, egui::Stroke::new(1.0, egui::Color32::from_rgb(87, 88, 92)));
+    painter.circle_filled(center, radius - 6.0, egui::Color32::from_rgb(39, 40, 44));
 
     let start_angle = std::f32::consts::PI * 0.75;
     let end_angle = std::f32::consts::PI * 2.25;
@@ -248,9 +266,19 @@ fn draw_knob(
     for i in 0..=48 {
         let t = i as f32 / 48.0;
         let a = start_angle + t * (end_angle - start_angle);
-        arc_points.push(egui::pos2(center.x + (radius + 9.0) * a.cos(), center.y + (radius + 9.0) * a.sin()));
+        arc_points.push(egui::pos2(center.x + (radius + 13.0) * a.cos(), center.y + (radius + 13.0) * a.sin()));
     }
-    painter.add(egui::Shape::line(arc_points, egui::Stroke::new(3.0_f32, egui::Color32::from_rgb(65, 40, 45))));
+    painter.add(egui::Shape::line(arc_points, egui::Stroke::new(2.0, egui::Color32::from_rgb(73, 49, 51))));
+    for tick in 0..=10 {
+        let t = tick as f32 / 10.0;
+        let a = start_angle + t * (end_angle - start_angle);
+        let inner = radius + 8.0;
+        let outer = radius + if tick % 5 == 0 { 13.0 } else { 11.0 };
+        painter.line_segment(
+            [egui::pos2(center.x + inner * a.cos(), center.y + inner * a.sin()), egui::pos2(center.x + outer * a.cos(), center.y + outer * a.sin())],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(145, 137, 135)),
+        );
+    }
 
     let mut active_points = Vec::new();
     let active_steps = (normalized * 48.0).round() as usize;
@@ -260,12 +288,12 @@ fn draw_knob(
         active_points.push(egui::pos2(center.x + (radius + 9.0) * a.cos(), center.y + (radius + 9.0) * a.sin()));
     }
     if active_points.len() > 1 {
-        painter.add(egui::Shape::line(active_points, egui::Stroke::new(3.5_f32, accent)));
+        painter.add(egui::Shape::line(active_points, egui::Stroke::new(4.0, accent)));
     }
 
-    let pointer_end = egui::pos2(center.x + (radius - 8.0) * angle.cos(), center.y + (radius - 8.0) * angle.sin());
-    painter.line_segment([center, pointer_end], egui::Stroke::new(3.0_f32, accent));
-    painter.circle_filled(center, 4.0, egui::Color32::from_rgb(235, 235, 238));
+    let pointer_end = egui::pos2(center.x + (radius - 9.0) * angle.cos(), center.y + (radius - 9.0) * angle.sin());
+    painter.line_segment([center, pointer_end], egui::Stroke::new(2.5, accent));
+    painter.circle_filled(center, 4.0, egui::Color32::from_rgb(211, 208, 204));
 
     let value_text = if label == "OUTPUT" {
         format!("{value:.1} dB")
@@ -273,18 +301,25 @@ fn draw_knob(
         format!("{value:.0}%")
     };
     painter.text(
-        egui::pos2(rect.center().x, rect.top() + 91.0),
+        egui::pos2(rect.center().x, rect.top() + 151.0),
         egui::Align2::CENTER_CENTER,
         value_text,
-        egui::FontId::proportional(13.0),
-        egui::Color32::from_rgb(230, 230, 235),
+        egui::FontId::proportional(19.0),
+        egui::Color32::from_rgb(237, 235, 231),
     );
     painter.text(
-        egui::pos2(rect.center().x, rect.top() + 117.0),
+        egui::pos2(rect.center().x, rect.top() + 180.0),
         egui::Align2::CENTER_CENTER,
         label,
         egui::FontId::proportional(11.0),
-        egui::Color32::from_rgb(170, 170, 180),
+        egui::Color32::from_rgb(208, 204, 199),
+    );
+    painter.text(
+        egui::pos2(rect.center().x, rect.top() + 199.0),
+        egui::Align2::CENTER_CENTER,
+        descriptor,
+        egui::FontId::proportional(8.0),
+        egui::Color32::from_rgb(126, 128, 132),
     );
 
     if response.double_clicked() {
@@ -300,3 +335,4 @@ impl Vst3Plugin for EmberFat {
 }
 
 nih_export_vst3!(EmberFat);
+
