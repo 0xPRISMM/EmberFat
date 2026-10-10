@@ -1,4 +1,3 @@
-<img width="516" height="298" alt="ember" src="https://github.com/user-attachments/assets/8618a86e-f333-4116-8256-89814e51a9f2" />
 # EmberFat — Rust VST3 saturation plugin
 
 EmberFat is an original, Sausage Fattener-inspired saturation effect. It does not use or copy proprietary Sausage Fattener code, branding, or presets.
@@ -14,6 +13,8 @@ EmberFat is an original, Sausage Fattener-inspired saturation effect. It does no
 - BYPASS
 - Stereo audio I/O
 - Smooth tanh saturation with a subtle color stage
+
+<img width="516" height="298" alt="ember" src="https://github.com/user-attachments/assets/8618a86e-f333-4116-8256-89814e51a9f2" />
 
 ## Requirements
 
