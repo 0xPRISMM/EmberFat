@@ -1,6 +1,7 @@
 name: Windows VST3 release
 
 on:
+  pull_request:
   workflow_dispatch:
   push:
     tags:
@@ -19,9 +20,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Cargo build
         uses: Swatinem/rust-cache@v2
+      - name: Run workspace tests
+        run: cargo test --workspace
       - name: Build EmberFat VST3 bundle
         shell: pwsh
-        run: cargo xtask bundle emberfat --release
+        run: cargo run --package xtask -- bundle emberfat --release
       - name: Stage VST3 bundle
         shell: pwsh
         run: |
@@ -44,7 +47,7 @@ jobs:
       - name: Upload VST3 and installer
         uses: actions/upload-artifact@v4
         with:
-          name: EmberFat-Windows-${{ github.ref_name }}
+          name: EmberFat-Windows-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref_name }}
           path: |
             dist/EmberFat.vst3
             dist/EmberFat-Windows-Setup.exe
