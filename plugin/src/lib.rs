@@ -464,7 +464,11 @@ fn draw_rotary_knob(
     let start_angle = std::f32::consts::PI * 0.75;
     let sweep = std::f32::consts::PI * 1.5;
     let target_pointer_angle = start_angle + normalized * sweep;
-    let source_pointer_angle = -1.0_f32;
+    let source_pointer_angle = if is_output {
+        -1.0_f32
+    } else {
+        -std::f32::consts::FRAC_PI_2
+    };
     draw_rotated_texture(
         painter,
         texture,
