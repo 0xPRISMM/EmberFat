@@ -1,5 +1,8 @@
 # EmberFat interface artwork
 
-The runtime artwork is stored as plain RGBA pixel data so the plugin can render it without adding an image-decoding dependency. Each `*.rgba` file contains tightly packed, unpremultiplied RGBA8 pixels; the dimensions are specified at each `include_bytes!` call in `plugin/src/lib.rs`.
+The plugin embeds these tightly packed, unpremultiplied RGBA8 textures so it can render without an image-decoding dependency. Each texture's pixel dimensions are declared beside its `include_bytes!` call in `plugin/src/lib.rs`.
 
-The copper knob and six mascot poses were prepared from images supplied for the EmberFat GUI. FAT selects the mascot pose, and the copper knob pointer rotates with each parameter.
+- `metal-background-900x486.rgba` is the supplied metal panel background.
+- `fat-stage-1.rgba` through `fat-stage-6.rgba` are the six transparent mascot poses selected by the FAT control.
+- `red-metal-knob-256.rgba` is the supplied dial face; `knob-range-256.rgba` is its separate range outline.
+- `output-knob-72.rgba` is a darker compact variant for OUTPUT.
