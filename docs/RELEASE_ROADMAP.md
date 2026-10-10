@@ -3,7 +3,7 @@
 ## Current
 
 - Four focused controls: FAT, COLOR, MIX and OUTPUT, plus ACTIVE/BYPASSED comparison.
-- Silver circular dials, fixed material highlights, a moving indicator, six mascot stages and licensed Barlow labels.
+- Silver circular dials centered inside their range rings, fixed material highlights, a moving indicator, six mascot stages, licensed Barlow labels and a textured graphite faceplate.
 - Precise drag accumulation, Shift fine adjustment, typed values, keyboard and wheel control; host automation gestures are paired.
 - Windows CI checks formatting and interaction tests, then uses scripts/package-windows.ps1 to build and package the VST3.
 - The package includes font licensing, version/source details and an installer checksum.

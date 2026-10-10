@@ -88,9 +88,9 @@ struct Artwork {
 fn load_artwork(ctx: &egui::Context) -> Artwork {
     let background = load_rgba_texture(
         ctx,
-        "emberfat-metal-panel",
-        [900, 486],
-        include_bytes!("../assets/metal-background-900x486.rgba"),
+        "emberfat-graphite-panel",
+        [1000, 540],
+        include_bytes!("../assets/graphite-background-1000x540.rgba"),
     );
     let knob = load_rgba_texture(
         ctx,
@@ -183,11 +183,11 @@ fn draw_front_panel(
 ) {
     let layout = PanelLayout::new(ui.max_rect());
     let painter = ui.painter();
-    // Sample the panel itself, excluding the transparent margins in the supplied artwork.
+    // The background texture already matches the editor's aspect ratio and has no transparent margins.
     painter.image(
         artwork.background.id(),
         layout.rect(0.0, 0.0, 1000.0, 540.0),
-        egui::Rect::from_min_max(egui::pos2(0.018, 0.100), egui::pos2(0.985, 0.905)),
+        egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
         egui::Color32::WHITE,
     );
     panel_text(
@@ -461,9 +461,13 @@ fn draw_rotary(
         );
     } else {
         let range_size = radius * 2.28;
+        // The painted ring in this asset is centered at about y=150 of 256,
+        // while its file bounds are centered at y=128. Align the visible ring
+        // with the knob for every size rather than aligning the image bounds.
+        let range_center = center - egui::vec2(0.0, range_size * 22.0 / 256.0);
         painter.image(
             artwork.knob_range.id(),
-            egui::Rect::from_center_size(center, egui::vec2(range_size, range_size)),
+            egui::Rect::from_center_size(range_center, egui::vec2(range_size, range_size)),
             egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
             if active {
                 egui::Color32::WHITE
