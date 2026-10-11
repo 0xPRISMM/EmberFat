@@ -1,70 +1,62 @@
-# EmberFat — Rust VST3 saturation plugin
+# EmberFat
 
-EmberFat is an original, Sausage Fattener-inspired saturation effect. It does not use or copy proprietary Sausage Fattener code, branding, or presets.
+[![Windows build](https://github.com/0xPRISMM/EmberFat/actions/workflows/windows-release.yml/badge.svg)](https://github.com/0xPRISMM/EmberFat/actions/workflows/windows-release.yml)
 
-## Features
+EmberFat is a stereo saturation effect built with Rust and [NIH-plug](https://github.com/robbert-vdh/nih-plug). It provides four focused controls for shaping drive, tone, blend, and output level.
 
-- VST3 plugin export through NIH-plug
-- Custom dark GUI with large red rotary controls
-- FAT: input drive / saturation amount
-- COLOR: harmonic tone character
-- MIX: dry/wet blend
-- OUTPUT: output level in dB
-- BYPASS
-- Stereo audio I/O
-- Smooth tanh saturation with a subtle color stage
-
-<img width="516" height="298" alt="ember" src="https://github.com/user-attachments/assets/8618a86e-f333-4116-8256-89814e51a9f2" />
-
-## Requirements
-
-- Rust stable toolchain (install from https://rustup.rs/)
-- A C/C++ build toolchain supported by your operating system
-- Windows, macOS, or Linux
-- FL Studio with VST3 support
-
-## Build a VST3 bundle
-
-From this directory, run:
-
-```bash
-cargo xtask bundle emberfat --release
-```
-
-The NIH-plug bundler should place the generated VST3 bundle under `target/bundled/`. Copy `EmberFat.vst3` into your system's VST3 plugin directory if it was not installed there automatically, then rescan plugins in FL Studio.
-
-To compile-check the Rust crate without bundling:
-
-```bash
-cargo check -p emberfat
-```
-
-## Windows VST3 location
-
-A common per-user location is:
-
-```text
-%LOCALAPPDATA%\\Programs\\Common\\VST3
-```
-
-The system-wide VST3 directory is commonly:
-
-```text
-C:\\Program Files\\Common Files\\VST3
-```
+![EmberFat interface](docs/emberfat-ui.png)
 
 ## Controls
 
-- **FAT**: raises the drive into a smooth saturation curve.
-- **COLOR**: adds a subtle tone/harmonic adjustment before saturation.
-- **MIX**: blends dry and processed signal.
-- **OUTPUT**: adjusts post-effect level.
-- **BYPASS**: passes audio unchanged.
+- FAT drive and saturation
+- COLOR harmonic character
+- MIX dry/wet blend
+- OUTPUT processed-signal level, before the dry/wet blend
+- ACTIVE/BYPASSED comparison and double-click reset
+- Shift-drag for fine control, click a value to type, arrow keys and mouse wheel adjustment
+- VST3 plugin with stereo I/O
 
-Double-click a knob to reset it to its default value. Drag vertically to change its value.
+## Download for Windows
 
-## Notes
+1. Open the [Windows build workflow](https://github.com/0xPRISMM/EmberFat/actions/workflows/windows-release.yml).
+2. Sign in to GitHub, open the latest successful run, and download its `EmberFat-Windows-*` artifact.
+3. Extract the ZIP and run `EmberFat-Windows-Setup.exe`.
+4. Close your DAW, choose the VST3 installation folder, then reopen the DAW and rescan plugins.
 
-- This source project has not been compiled or tested in FL Studio in this environment.
-- A VST3 bundle is platform-specific, so build it on the operating system you intend to use.
-- NIH-plug's VST3 bindings have GPL-3.0 licensing implications. Review the framework license and its current repository guidance before distributing binaries or source.
+Each download includes `BUILD.txt` with its version/source revision and `SHA256SUMS.txt` for the installer. The installer version comes from the plugin manifest.
+
+Workflow artifacts are temporary downloads and expire after 30 days. Versioned public releases are not published yet.
+
+## Build from source
+
+Install the stable Rust toolchain and a native C/C++ build toolchain for your platform, then run:
+
+```sh
+cargo test --workspace
+cargo run --package xtask -- bundle emberfat --release
+```
+
+The VST3 bundle is generated under `target/bundled/`. For the complete Windows package, install Inno Setup 6 and run:
+
+```powershell
+./scripts/package-windows.ps1
+```
+
+Use `-InnoCompiler 'C:/path/to/ISCC.exe'` for a custom installation. This builds the VST3, stages a fresh bundle with UI asset licenses, and creates the installer and checksum in `dist/`.
+
+## Repository layout
+
+```text
+.github/workflows/   CI build and release artifact workflow
+docs/                Release roadmap and project notes
+installer/windows/   Inno Setup installer definition
+plugin/              EmberFat plugin source and manifest
+scripts/             Repeatable Windows packaging
+xtask/               NIH-plug bundling task
+```
+
+Build outputs and installers are generated in `target/` and `dist/`; they are intentionally not stored in the source repository.
+
+## Licensing
+
+Barlow Condensed is embedded under the SIL Open Font License 1.1; see [UI asset notices](THIRD_PARTY_NOTICES.md). The plugin crate declares `GPL-3.0-or-later` in `plugin/Cargo.toml`. Review NIH-plug and dependency licensing before redistributing builds.

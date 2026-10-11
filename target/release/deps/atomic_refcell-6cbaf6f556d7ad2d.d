@@ -1,7 +1,0 @@
-C:\Users\maxha\Downloads\emberfat_rust_vst3\emberfat_rust_vst3\target\release\deps\atomic_refcell-6cbaf6f556d7ad2d.d: C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atomic_refcell-0.1.14\src\lib.rs
-
-C:\Users\maxha\Downloads\emberfat_rust_vst3\emberfat_rust_vst3\target\release\deps\libatomic_refcell-6cbaf6f556d7ad2d.rlib: C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atomic_refcell-0.1.14\src\lib.rs
-
-C:\Users\maxha\Downloads\emberfat_rust_vst3\emberfat_rust_vst3\target\release\deps\libatomic_refcell-6cbaf6f556d7ad2d.rmeta: C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atomic_refcell-0.1.14\src\lib.rs
-
-C:\Users\maxha\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atomic_refcell-0.1.14\src\lib.rs:

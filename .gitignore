@@ -1,0 +1,9 @@
+/target/
+/dist/
+*.vst3
+*.exe
+*.dll
+*.pdb
+*.ilk
+.DS_Store
+Thumbs.db
