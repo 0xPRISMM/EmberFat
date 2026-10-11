@@ -26,14 +26,13 @@ The revised gain compensation and curve change the sound of existing presets. Pa
 
 ## Download for Windows
 
-1. Open the [Windows build workflow](https://github.com/0xPRISMM/EmberFat/actions/workflows/windows-release.yml).
-2. Sign in to GitHub, open the latest successful run, and download its `EmberFat-Windows-*` artifact.
-3. Extract the ZIP and run `EmberFat-Windows-Setup.exe`.
-4. Close your DAW, choose the VST3 installation folder, then reopen the DAW and rescan plugins.
+1. Open [GitHub Releases](https://github.com/0xPRISMM/EmberFat/releases/latest).
+2. Download `EmberFat-0.2.0-Windows-Setup.exe` and run it.
+3. Close your DAW before installing, choose the VST3 installation folder, then reopen the DAW and rescan plugins.
 
-Each download includes `BUILD.txt` with its version/source revision and `SHA256SUMS.txt` for the installer. The installer version comes from the plugin manifest.
+The release also provides a VST3 ZIP for manual installation and SHA256 checksums for both downloads.
 
-Workflow artifacts are temporary downloads and expire after 30 days. Versioned public releases are not published yet.
+Development builds remain available from the [Windows build workflow](https://github.com/0xPRISMM/EmberFat/actions/workflows/windows-release.yml). Workflow artifacts expire after 30 days; versioned release downloads remain available under Releases.
 
 ## Build from source
 
