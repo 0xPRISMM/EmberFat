@@ -44,6 +44,7 @@ try {
     $licenses = Join-Path $stagedBundle "Contents/Resources/Licenses"
     New-Item -ItemType Directory -Path $licenses -Force | Out-Null
     Copy-Item -LiteralPath "plugin/assets/fonts/OFL.txt" -Destination (Join-Path $licenses "Barlow-OFL.txt")
+    Copy-Item -LiteralPath "plugin/assets/fonts/PermanentMarker-LICENSE.txt" -Destination $licenses
     Copy-Item -LiteralPath "THIRD_PARTY_NOTICES.md" -Destination $licenses
     & $InnoCompiler "/DMyAppVersion=$version" "installer/windows/EmberFat.iss"
     if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed with exit code $LASTEXITCODE" }

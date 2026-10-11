@@ -1,36 +1,42 @@
 # EmberFat interface artwork
 
-The editor embeds unpremultiplied RGBA8 textures; dimensions are declared beside
-each include_bytes! call in plugin/src/editor.rs. It has no runtime asset downloads.
 
-- graphite-background-1000x540.rgba: textured graphite/bronze faceplate generated for this interface.
-  It is mapped edge to edge with no aspect distortion.
-- fat-stage-1.rgba through fat-stage-6.rgba: the six supplied mascot stages.
-- silver-knob-384.rgba: silver, front-facing dial base derived from the supplied knob.
-  The image stays fixed; the ivory indicator is drawn and rotated by the editor,
-  so the circular housing and lighting cannot wobble when adjusting a value.
-- knob-range-256.rgba: supplied range outline, rendered in neutral gray.
+
+The editor embeds the project owner's supplied PNG artwork as unpremultiplied
+
+RGBA8 textures without resampling. PNG sources are retained alongside
+
+raw byte textures. Assets are embedded in the plugin; no runtime downloads.
+
+
+
+- amber-panel: 1709 × 920 faceplate, with the EMBERFAT wordmark already included.
+
+- control-sheet: 2048 × 768 transparent sheet with three sizes of metal caps,
+
+  a small output cap, and static range markings. UV sprite rectangles and
+
+  rotation pivots are declared in editor.rs. The supplied ivory pointers rotate
+
+  with the caps; range markings remain fixed.
+
+- switch-sheet: 2048 × 768 transparent active (orange) and bypass (gray) plates.
+
+- tiger-sheet: 2172 × 724 transparent sheet with six progressively larger tigers.
+
+  The sheet is split into two texture pages at x=1008 to fit 2048-pixel GPUs.
+  All stages share the same display scale and baseline, selected by FAT.
+
 - fonts/BarlowCondensed-SemiBold.ttf: unmodified OFL 1.1 font; see fonts/OFL.txt
+
   and ../../THIRD_PARTY_NOTICES.md.
 
-The compact OUTPUT control is drawn as a circular gray gain cap in the editor.
 
-## Silver knob generation
 
-Built-in imagegen, precise-object-edit, from the project owner's knob.
-Final prompt: strict orthographic top view; geometrically circular, concentric
-silver brushed disc and dark gray grip with equal radial width; remove the ivory
-indicator for separate rendering; preserve mechanical detail; fixed neutral light;
-transparent background; no perspective, bottom extrusion, labels or colored glow.
-The generated silhouette is fitted to a square texture for equal horizontal and
-vertical diameter. This project artwork is separate from the third-party font.
+Earlier graphite artwork remains in the source tree but is no longer embedded.
 
-## Graphite background generation
 
-Built-in imagegen, stylized-concept. Final prompt: an empty wide 1000 x 540
-orthographic studio-hardware faceplate with a slim dark metal chassis, four
-matching corner fasteners, fine brushed graphite, subtle warm bronze lighting,
-restrained natural patina and quiet center space. No text, mascots, controls,
-gauges, notes, logos, broad scratches, rusty patches or plain flat fill.
-The generated source was resized to the panel's exact pixel dimensions before
-embedding, so its frame remains proportionate.
+Control captions use Barlow Condensed SemiBold again. Knob title sizes are
+26.6 px (FAT/COLOR), 19 px (MIX), and 17 px (OUTPUT). Readouts are
+16.5 px except OUTPUT at 14.5 px. OUTPUT and its label group move 12 px right. The Permanent Marker font and
+license are retained as unused source assets from the earlier style variant.

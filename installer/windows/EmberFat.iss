@@ -2,7 +2,7 @@
 #ifndef MyAppVersion
   #error "Build with scripts/package-windows.ps1 so the version matches the plugin."
 #endif
-#define MyPublisher "Ember Audio Lab"
+#define MyPublisher "eM4"
 #define MyVst3Bundle "EmberFat.vst3"
 
 [Setup]

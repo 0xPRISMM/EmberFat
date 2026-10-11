@@ -80,74 +80,77 @@ impl PanelLayout {
 
 struct Artwork {
     background: egui::TextureHandle,
-    knob: egui::TextureHandle,
-    knob_range: egui::TextureHandle,
-    mascot_stages: [egui::TextureHandle; 6],
+    controls: egui::TextureHandle,
+    switches: egui::TextureHandle,
+    tigers: [egui::TextureHandle; 2],
 }
 
 fn load_artwork(ctx: &egui::Context) -> Artwork {
-    let background = load_rgba_texture(
-        ctx,
-        "emberfat-graphite-panel",
-        [1000, 540],
-        include_bytes!("../assets/graphite-background-1000x540.rgba"),
-    );
-    let knob = load_rgba_texture(
-        ctx,
-        "emberfat-silver-knob",
-        [384, 384],
-        include_bytes!("../assets/silver-knob-384.rgba"),
-    );
-    let knob_range = load_neutral_texture(
-        ctx,
-        "emberfat-knob-range",
-        [256, 256],
-        include_bytes!("../assets/knob-range-256.rgba"),
-    );
-    let mascot_stages = [
-        load_rgba_texture(
-            ctx,
-            "fat-stage-1",
-            [240, 390],
-            include_bytes!("../assets/fat-stage-1.rgba"),
-        ),
-        load_rgba_texture(
-            ctx,
-            "fat-stage-2",
-            [240, 390],
-            include_bytes!("../assets/fat-stage-2.rgba"),
-        ),
-        load_rgba_texture(
-            ctx,
-            "fat-stage-3",
-            [240, 390],
-            include_bytes!("../assets/fat-stage-3.rgba"),
-        ),
-        load_rgba_texture(
-            ctx,
-            "fat-stage-4",
-            [240, 390],
-            include_bytes!("../assets/fat-stage-4.rgba"),
-        ),
-        load_rgba_texture(
-            ctx,
-            "fat-stage-5",
-            [240, 390],
-            include_bytes!("../assets/fat-stage-5.rgba"),
-        ),
-        load_rgba_texture(
-            ctx,
-            "fat-stage-6",
-            [240, 390],
-            include_bytes!("../assets/fat-stage-6.rgba"),
-        ),
-    ];
     Artwork {
-        background,
-        knob,
-        knob_range,
-        mascot_stages,
+        background: load_rgba_texture(
+            ctx,
+            "emberfat-amber-panel",
+            [1709, 920],
+            include_bytes!("../assets/amber-panel.rgba"),
+        ),
+        controls: load_rgba_texture(
+            ctx,
+            "emberfat-supplied-controls",
+            [2048, 768],
+            include_bytes!("../assets/control-sheet.rgba"),
+        ),
+        switches: load_rgba_texture(
+            ctx,
+            "emberfat-active-bypass",
+            [2048, 768],
+            include_bytes!("../assets/switch-sheet.rgba"),
+        ),
+        tigers: [
+            load_rgba_texture(
+                ctx,
+                "emberfat-tigers-left",
+                [1008, 724],
+                include_bytes!("../assets/tigers-left.rgba"),
+            ),
+            load_rgba_texture(
+                ctx,
+                "emberfat-tigers-right",
+                [1164, 724],
+                include_bytes!("../assets/tigers-right.rgba"),
+            ),
+        ],
     }
+}
+
+// Sprite rectangles reference the original supplied sheets; no resampling or
+// recoloring is baked into the source artwork. Pivots align rotating caps and rings.
+fn sprite(
+    painter: &egui::Painter,
+    texture: &egui::TextureHandle,
+    source: [f32; 4],
+    pivot: egui::Pos2,
+    center: egui::Pos2,
+    scale: f32,
+    rotation: f32,
+) {
+    let [left, top, right, bottom] = source;
+    let tex_size = texture.size_vec2();
+    let turn = egui::emath::Rot2::from_angle(rotation);
+    let mut mesh = egui::Mesh::with_texture(texture.id());
+    for point in [
+        egui::pos2(left, top),
+        egui::pos2(right, top),
+        egui::pos2(right, bottom),
+        egui::pos2(left, bottom),
+    ] {
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: center + turn * ((point - pivot) * scale),
+            uv: egui::pos2(point.x / tex_size.x, point.y / tex_size.y),
+            color: egui::Color32::WHITE,
+        });
+    }
+    mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+    painter.add(egui::Shape::mesh(mesh));
 }
 
 fn load_rgba_texture(
@@ -159,20 +162,6 @@ fn load_rgba_texture(
     debug_assert_eq!(rgba.len(), size[0] * size[1] * 4);
     let image = egui::ColorImage::from_rgba_unmultiplied(size, rgba);
     ctx.load_texture(name, image, egui::TextureOptions::LINEAR)
-}
-
-fn load_neutral_texture(
-    ctx: &egui::Context,
-    name: &str,
-    size: [usize; 2],
-    rgba: &[u8],
-) -> egui::TextureHandle {
-    let mut neutral = rgba.to_vec();
-    for pixel in neutral.chunks_exact_mut(4) {
-        let gray = ((u16::from(pixel[0]) + u16::from(pixel[1]) + u16::from(pixel[2])) / 3) as u8;
-        pixel[..3].fill(gray);
-    }
-    load_rgba_texture(ctx, name, size, &neutral)
 }
 
 fn draw_front_panel(
@@ -190,45 +179,49 @@ fn draw_front_panel(
         egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
         egui::Color32::WHITE,
     );
-    panel_text(
-        painter,
-        layout.point(74.0, 76.0),
-        egui::Align2::LEFT_CENTER,
-        "EMBERFAT",
-        display_font(35.0 * layout.scale),
-        CREAM,
-    );
-    panel_text(
-        painter,
-        layout.point(75.0, 104.0),
-        egui::Align2::LEFT_CENTER,
-        "HARMONIC SATURATION",
-        egui::FontId::proportional(10.0 * layout.scale),
-        CREAM,
-    );
+    // The supplied faceplate includes the EMBERFAT wordmark.
     ui.interact(
-        layout.rect(70.0, 54.0, 205.0, 62.0),
+        layout.rect(28.0, 20.0, 380.0, 125.0),
         egui::Id::new("brand"),
         egui::Sense::hover(),
     )
     .on_hover_text(format!(
-        "EmberFat {}\nStereo saturation · Ember Audio Lab",
+        "EmberFat {}\nStereo saturation · eM4",
         env!("CARGO_PKG_VERSION")
     ));
 
     let stage = ((params.fat.value() / 100.0).clamp(0.0, 1.0) * 5.0).round() as usize;
-    ui.painter().image(
-        artwork.mascot_stages[stage].id(),
-        layout.rect(64.0, 136.0, 220.0, 357.5),
-        egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
-        egui::Color32::WHITE,
+    let mut bounds = [
+        [12.0, 80.0, 314.0, 668.0],
+        [318.0, 80.0, 652.0, 668.0],
+        [657.0, 80.0, 1006.0, 668.0],
+        [1009.0, 80.0, 1377.0, 668.0],
+        [1378.0, 80.0, 1755.0, 668.0],
+        [1756.0, 80.0, 2160.0, 668.0],
+    ][stage];
+    let tiger_sheet = if stage < 3 { 0 } else { 1 };
+    if tiger_sheet == 1 {
+        bounds[0] -= 1008.0;
+        bounds[2] -= 1008.0;
+    }
+    sprite(
+        painter,
+        &artwork.tigers[tiger_sheet],
+        bounds,
+        egui::pos2(
+            (bounds[0] + bounds[2]) * 0.5,
+            [646.0, 648.0, 650.0, 651.0, 653.0, 654.0][stage],
+        ),
+        layout.point(165.0, 485.0),
+        0.58 * layout.scale,
+        0.0,
     );
 
     draw_dial(
         ui,
         artwork,
         layout,
-        (438.0, 206.0),
+        (445.0, 206.0),
         86.0,
         "FAT",
         "Increases drive and saturation density.",
@@ -240,7 +233,7 @@ fn draw_front_panel(
         ui,
         artwork,
         layout,
-        (700.0, 238.0),
+        (702.0, 238.0),
         73.0,
         "COLOR",
         "Changes the saturation character.",
@@ -252,7 +245,7 @@ fn draw_front_panel(
         ui,
         artwork,
         layout,
-        (530.0, 420.0),
+        (538.0, 413.0),
         35.0,
         "MIX",
         "Blends dry and processed sound.",
@@ -264,7 +257,7 @@ fn draw_front_panel(
         ui,
         artwork,
         layout,
-        (764.0, 448.0),
+        (800.0, 436.0),
         19.0,
         "OUTPUT",
         "Sets the processed signal level before the dry/wet blend.",
@@ -273,7 +266,7 @@ fn draw_front_panel(
         true,
     );
 
-    draw_bypass(ui, layout, &params.bypass, setter);
+    draw_bypass(ui, artwork, layout, &params.bypass, setter);
 }
 
 fn panel_text(
@@ -289,7 +282,11 @@ fn panel_text(
         align,
         text,
         font.clone(),
-        egui::Color32::from_black_alpha(230),
+        if color == INK {
+            egui::Color32::from_white_alpha(145)
+        } else {
+            egui::Color32::from_black_alpha(230)
+        },
     );
     painter.text(position, align, text, font, color);
 }
@@ -324,24 +321,50 @@ fn draw_dial(
         center,
         radius * layout.scale,
         normalized,
-        is_output,
+        if is_output {
+            3
+        } else if radius < 40.0 {
+            2
+        } else if radius < 80.0 {
+            1
+        } else {
+            0
+        },
         active,
     );
 
     let compact = radius < 40.0;
-    let label_offset = if is_output { 31.0 } else { radius + 27.0 };
-    let value_offset = label_offset + if compact { 19.0 } else { 23.0 };
+    // Label/value groups are anchored to the faceplate's white paint patches,
+    // independently of the cap size and the static range artwork.
+    let text_center = match label {
+        "FAT" => (440.0, 312.0),
+        "COLOR" => (709.0, 329.0),
+        "MIX" => (537.0, 463.0),
+        "OUTPUT" => (800.0, 479.0),
+        _ => (position.0, position.1 + radius + 38.5),
+    };
+    let half_spacing = if compact { 10.0 } else { 11.5 };
+    let label_position = (text_center.0, text_center.1 - half_spacing);
+    let value_position = (text_center.0, text_center.1 + half_spacing);
     panel_text(
         ui.painter(),
-        center + egui::vec2(0.0, label_offset * layout.scale),
+        layout.point(label_position.0, label_position.1),
         egui::Align2::CENTER_CENTER,
         label,
-        display_font(if compact { 17.0 } else { 25.0 } * layout.scale),
-        if active { ACCENT } else { CREAM },
+        display_font(
+            if is_output {
+                17.0
+            } else if compact {
+                19.0
+            } else {
+                26.6
+            } * layout.scale,
+        ),
+        INK,
     );
 
     let value_rect = egui::Rect::from_center_size(
-        center + egui::vec2(0.0, value_offset * layout.scale),
+        layout.point(value_position.0, value_position.1),
         egui::vec2(if is_output { 98.0 } else { 82.0 }, 24.0) * layout.scale,
     );
     draw_value(
@@ -375,7 +398,9 @@ fn draw_value(
         .push_id(("value", label), |ui| {
             ui.scope(|ui| {
                 let style = ui.style_mut();
-                style.override_font_id = Some(egui::FontId::proportional(13.0 * scale));
+                style.override_font_id = Some(egui::FontId::proportional(
+                    if is_output { 14.5 } else { 16.5 } * scale,
+                ));
                 style.spacing.interact_size = rect.size();
                 style.spacing.button_padding = egui::vec2(3.0, 2.0) * scale;
                 for widget in [
@@ -387,7 +412,7 @@ fn draw_value(
                     widget.bg_fill = egui::Color32::TRANSPARENT;
                     widget.weak_bg_fill = egui::Color32::TRANSPARENT;
                     widget.bg_stroke = egui::Stroke::NONE;
-                    widget.fg_stroke.color = CREAM;
+                    widget.fg_stroke.color = INK;
                 }
                 ui.put(
                     rect,
@@ -438,85 +463,66 @@ fn draw_rotary(
     center: egui::Pos2,
     radius: f32,
     normalized: f32,
-    is_output: bool,
+    variant: usize,
     active: bool,
 ) {
-    if is_output {
-        // A small, exactly circular gain cap with fixed lighting.
-        painter.circle_filled(center, radius, egui::Color32::from_rgb(13, 14, 16));
-        painter.circle_filled(
-            center,
-            radius * 0.93,
-            egui::Color32::from_rgb(174, 177, 178),
-        );
-        painter.circle_filled(
-            center + egui::vec2(0.0, radius * 0.04),
-            radius * 0.83,
-            egui::Color32::from_rgb(47, 49, 51),
-        );
-        painter.circle_filled(
-            center - egui::vec2(0.0, radius * 0.10),
-            radius * 0.68,
-            egui::Color32::from_rgb(62, 65, 68),
-        );
+    let (bounds, pivot, source_radius, reference_angle) = if variant == 3 {
+        (
+            [1524.0, 630.0, 1654.0, 760.0],
+            egui::pos2(1589.0, 695.0),
+            64.0,
+            -32.0_f32,
+        )
+    } else if variant == 2 {
+        (
+            [1182.0, 573.0, 1362.0, 753.0],
+            egui::pos2(1272.0, 663.0),
+            89.0,
+            40.0,
+        )
+    } else if variant == 1 {
+        (
+            [1616.0, 132.0, 1998.0, 514.0],
+            egui::pos2(1807.0, 323.0),
+            189.0,
+            -140.0,
+        )
     } else {
-        let range_size = radius * 2.28;
-        // The painted ring in this asset is centered at about y=150 of 256,
-        // while its file bounds are centered at y=128. Align the visible ring
-        // with the knob for every size rather than aligning the image bounds.
-        let range_center = center - egui::vec2(0.0, range_size * 22.0 / 256.0);
-        painter.image(
-            artwork.knob_range.id(),
-            egui::Rect::from_center_size(range_center, egui::vec2(range_size, range_size)),
-            egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
-            if active {
-                egui::Color32::WHITE
-            } else {
-                egui::Color32::from_gray(215)
-            },
-        );
-        // The housing and metal highlights never rotate; this prevents perspective wobble.
-        painter.image(
-            artwork.knob.id(),
-            egui::Rect::from_center_size(center, egui::vec2(radius * 2.0, radius * 2.0)),
-            egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
-            egui::Color32::WHITE,
+        (
+            [620.0, 109.0, 1074.0, 565.0],
+            egui::pos2(847.0, 337.0),
+            226.0,
+            -140.0,
+        )
+    };
+    if variant != 3 {
+        // The range stays still while the supplied cap and ivory pointer turn.
+        sprite(
+            painter,
+            &artwork.controls,
+            [28.0, 20.0, 602.0, 558.0],
+            egui::pos2(331.0, 335.0),
+            center,
+            radius / 226.0 * 0.93,
+            0.0,
         );
     }
-    let angle = std::f32::consts::PI * (0.75 + normalized.clamp(0.0, 1.0) * 1.5);
-    let direction = egui::vec2(angle.cos(), angle.sin());
-    let endpoints = [
-        center + direction * radius * 0.32,
-        center + direction * radius * 0.67,
-    ];
-    let width = (radius * 0.10).max(2.0);
-    capsule(
+    let angle = (135.0 + normalized.clamp(0.0, 1.0) * 270.0).to_radians();
+    sprite(
         painter,
-        [
-            endpoints[0] + egui::vec2(0.6, 0.9),
-            endpoints[1] + egui::vec2(0.6, 0.9),
-        ],
-        width + 2.5,
-        egui::Color32::from_black_alpha(180),
+        &artwork.controls,
+        bounds,
+        pivot,
+        center,
+        radius * if variant == 3 { 1.0 } else { 0.87 } / source_radius,
+        angle - reference_angle.to_radians(),
     );
-    capsule(
-        painter,
-        endpoints,
-        width + 1.0,
-        egui::Color32::from_rgb(241, 234, 220),
-    );
-    capsule(
-        painter,
-        endpoints,
-        width * 0.57,
-        egui::Color32::from_rgb(255, 251, 240),
-    );
-}
-
-fn capsule(painter: &egui::Painter, points: [egui::Pos2; 2], width: f32, color: egui::Color32) {
-    painter.line_segment(points, egui::Stroke::new(width, color));
-    for point in points {
-        painter.circle_filled(point, width * 0.5, color);
+    if active {
+        painter.circle_stroke(
+            center,
+            radius * if variant == 3 { 1.0 } else { 0.87 } + 2.0,
+            egui::Stroke::new(1.0_f32, ACCENT),
+        );
     }
 }
 
@@ -526,7 +532,13 @@ struct PendingBypass {
     requested_at: f64,
 }
 
-fn draw_bypass(ui: &mut egui::Ui, layout: PanelLayout, param: &BoolParam, setter: &ParamSetter) {
+fn draw_bypass(
+    ui: &mut egui::Ui,
+    artwork: &Artwork,
+    layout: PanelLayout,
+    param: &BoolParam,
+    setter: &ParamSetter,
+) {
     let rect = layout.rect(312.0, 439.0, 128.0, 35.0);
     let response = ui.interact(rect, egui::Id::new("emberfat-bypass"), egui::Sense::click());
     let pending_id = response.id.with("pending");
@@ -565,35 +577,26 @@ fn draw_bypass(ui: &mut egui::Ui, layout: PanelLayout, param: &BoolParam, setter
         )
     });
     let painter = ui.painter();
-    painter.rect_filled(
-        rect.translate(egui::vec2(0.0, 2.0 * layout.scale)),
-        17.0 * layout.scale,
-        egui::Color32::from_black_alpha(180),
-    );
-    painter.rect_filled(
-        rect,
-        17.0 * layout.scale,
-        if response.hovered() || response.has_focus() {
-            egui::Color32::from_rgb(53, 50, 47)
-        } else {
-            INK
-        },
-    );
-    let led = layout.point(328.0, 456.5);
-    painter.circle_filled(
-        led,
-        4.0 * layout.scale,
-        if bypassed {
-            egui::Color32::from_rgb(100, 99, 96)
-        } else {
-            egui::Color32::from_rgb(242, 126, 71)
-        },
+    let source = if bypassed {
+        [1060.0, 140.0, 1995.0, 626.0]
+    } else {
+        [40.0, 140.0, 975.0, 626.0]
+    };
+    // Include the plate's paint splashes without expanding the click target.
+    sprite(
+        painter,
+        &artwork.switches,
+        source,
+        egui::pos2(source[0] + 467.5, 359.0),
+        rect.center(),
+        128.0 / 800.0 * layout.scale,
+        0.0,
     );
     painter.text(
-        layout.point(384.0, 456.5),
+        layout.point(394.0, 456.5),
         egui::Align2::CENTER_CENTER,
         if bypassed { "BYPASSED" } else { "ACTIVE" },
-        display_font(15.0 * layout.scale),
+        display_font(if bypassed { 13.5 } else { 17.0 } * layout.scale),
         CREAM,
     );
     response

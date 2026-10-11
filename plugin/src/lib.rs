@@ -1,11 +1,13 @@
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
+mod dsp;
 mod editor;
 use std::sync::Arc;
 
 struct EmberFat {
     params: Arc<EmberFatParams>,
+    dsp: dsp::Dsp,
 }
 
 #[derive(Params)]
@@ -80,18 +82,33 @@ impl Default for EmberFatParams {
 
 impl Default for EmberFat {
     fn default() -> Self {
+        let params = Arc::new(EmberFatParams::default());
         Self {
-            params: Arc::new(EmberFatParams::default()),
+            dsp: dsp::Dsp::new(48000.0, params.controls()),
+            params,
+        }
+    }
+}
+
+impl EmberFatParams {
+    fn controls(&self) -> dsp::Controls {
+        dsp::Controls {
+            fat: f64::from(self.fat.value()) / 100.0,
+            color: f64::from(self.color.value()) / 100.0,
+            mix: f64::from(self.mix.value()) / 100.0,
+            gain: f64::from(util::db_to_gain(self.output.value())),
+            bypass: self.bypass.value(),
         }
     }
 }
 
 impl Plugin for EmberFat {
     const NAME: &'static str = "EmberFat";
-    const VENDOR: &'static str = "Ember Audio Lab";
+    const VENDOR: &'static str = "eM4";
     const URL: &'static str = "https://github.com/0xPRISMM/EmberFat";
     const EMAIL: &'static str = "";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    const SAMPLE_ACCURATE_AUTOMATION: bool = true;
 
     const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[AudioIOLayout {
         main_input_channels: NonZeroU32::new(2),
@@ -115,10 +132,16 @@ impl Plugin for EmberFat {
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
-        _buffer_config: &BufferConfig,
-        _context: &mut impl InitContext<Self>,
+        buffer_config: &BufferConfig,
+        context: &mut impl InitContext<Self>,
     ) -> bool {
+        self.dsp = dsp::Dsp::new(f64::from(buffer_config.sample_rate), self.params.controls());
+        context.set_latency_samples(dsp::LATENCY as u32);
         true
+    }
+
+    fn reset(&mut self) {
+        self.dsp.reset(self.params.controls());
     }
 
     fn process(
@@ -127,33 +150,9 @@ impl Plugin for EmberFat {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        let fat = self.params.fat.value() / 100.0;
-        let color = self.params.color.value() / 100.0;
-        let mix = self.params.mix.value() / 100.0;
-        let out_gain = util::db_to_gain(self.params.output.value());
-        let bypass = self.params.bypass.value();
-
-        if bypass {
-            return ProcessStatus::Normal;
-        }
-
-        // Drive increases density; the normalization keeps extreme settings from
-        // becoming an uncontrolled volume boost. Color adds a subtle even-harmonic
-        // component before the smooth tanh curve.
-        let drive = 1.0 + fat * 7.0;
-        let norm = drive.tanh().max(0.0001);
-        let even_harmonic = color * 0.10;
-
+        self.dsp.set_controls(self.params.controls());
         for channel_samples in buffer.iter_samples() {
-            for sample in channel_samples {
-                let dry = *sample;
-                let shaped = dry + even_harmonic * dry * dry * dry.signum();
-                let saturated = (shaped * drive).tanh() / norm;
-                let colored = saturated * (1.0 - color * 0.12)
-                    + (shaped / (1.0 + shaped.abs())) * (color * 0.12);
-                let wet = colored * out_gain;
-                *sample = (dry + (wet - dry) * mix).clamp(-1.5, 1.5);
-            }
+            self.dsp.frame(channel_samples.into_iter());
         }
 
         ProcessStatus::Normal

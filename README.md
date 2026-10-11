@@ -6,6 +6,14 @@ EmberFat is a stereo saturation effect built with Rust and [NIH-plug](https://gi
 
 ![EmberFat interface](docs/emberfat-ui.png)
 
+## Audio processing in 0.2.0
+
+Knob changes ramp over 20 ms; ACTIVE/BYPASSED crossfades over 5 ms. Host automation is sample accurate. An original soft saturation curve runs at 4x sample rate with FIR anti-alias filters. COLOR introduces asymmetric harmonics and softens the added distortion; DC filtering applies only to that distortion.
+
+FAT at zero is clean at unity OUTPUT. MIX at zero and BYPASSED preserve the original signal, including headroom. All paths have the same fixed 48-sample latency, reported to the host for delay compensation. OUTPUT still controls the wet signal before MIX.
+
+The revised gain compensation and curve change the sound of existing presets. Parameter IDs and the VST3 class ID remain stable. See the [DSP review and validation](docs/DSP_REVIEW.md) for measurements and comparisons.
+
 ## Controls
 
 - FAT drive and saturation
