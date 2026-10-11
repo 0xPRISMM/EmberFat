@@ -16,3 +16,11 @@ license. It is not sold separately.
 
 The metal panel, mascot and dial artwork are project artwork supplied by the
 project owner or derived from it; they are not part of the Barlow font license.
+
+
+## Permanent Marker
+
+Permanent Marker by Font Diner, distributed unmodified under Apache License 2.0.
+Source: https://github.com/google/fonts/tree/main/apache/permanentmarker
+The complete license is in plugin/assets/fonts/PermanentMarker-LICENSE.txt and
+is copied into Contents/Resources/Licenses in the packaged VST3 bundle.

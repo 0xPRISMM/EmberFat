@@ -41,14 +41,19 @@ impl GuiContext for Host {
 struct Harness {
     ctx: egui::Context,
     host: Host,
+    artwork: Artwork,
     params: EmberFatParams,
     time: f64,
 }
 
 impl Harness {
     fn new() -> Self {
+        let ctx = egui::Context::default();
+        configure_style(&ctx);
+        let artwork = load_artwork(&ctx);
         let result = Self {
-            ctx: egui::Context::default(),
+            ctx,
+            artwork,
             host: Host::default(),
             params: EmberFatParams::default(),
             time: 0.0,
@@ -104,6 +109,7 @@ impl Harness {
                     );
                     draw_bypass(
                         ui,
+                        &self.artwork,
                         PanelLayout::new(egui::Rect::from_min_size(egui::Pos2::ZERO, PANEL_SIZE)),
                         &self.params.bypass,
                         &ParamSetter::new(&self.host),
@@ -329,4 +335,124 @@ fn rapid_bypass_clicks_toggle_even_before_host_feedback() {
     h.click(376.0, 457.0);
     assert_eq!(h.values(), vec![1.0, 0.0]);
     h.assert_balanced();
+}
+
+// Optional headless export uses the same paint meshes and textures as the VST3 editor.
+// Set EMBERFAT_PREVIEW_DIR to inspect each tiger stage and the bypass state.
+#[test]
+fn render_supplied_artwork_previews() {
+    use std::fmt::Write as _;
+    let Some(directory) = std::env::var_os("EMBERFAT_PREVIEW_DIR") else {
+        return;
+    };
+    for (name, fat, bypassed, factor) in [
+        ("default", 32.0, false, 1.0),
+        ("stage-1", 0.0, false, 1.0),
+        ("stage-2", 20.0, false, 1.0),
+        ("stage-3", 40.0, false, 1.0),
+        ("stage-4", 60.0, false, 1.0),
+        ("stage-5", 80.0, false, 1.0),
+        ("stage-6", 100.0, false, 1.0),
+        ("bypassed-small", 100.0, true, 0.75),
+    ] {
+        let path = std::path::Path::new(&directory).join(name);
+        std::fs::create_dir_all(&path).unwrap();
+        let mut h = Harness::new();
+        h.params.fat = FloatParam::new(
+            "Fat",
+            fat,
+            FloatRange::Linear {
+                min: 0.0,
+                max: 100.0,
+            },
+        )
+        .with_step_size(0.1);
+        h.params.bypass = BoolParam::new("Bypass", bypassed);
+        let mut texture_records = vec![];
+        let mut last = None;
+        for frame in 0..3 {
+            let out = h.ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        PANEL_SIZE * factor,
+                    )),
+                    time: Some(frame as f64 * 0.1),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::new().fill(INK).inner_margin(0.0))
+                        .show(ctx, |ui| {
+                            draw_front_panel(ui, &h.artwork, &h.params, &ParamSetter::new(&h.host))
+                        });
+                },
+            );
+            for (id, delta) in &out.textures_delta.set {
+                let egui::TextureId::Managed(id) = id else {
+                    panic!("Unexpected user texture")
+                };
+                let im = match &delta.image {
+                    egui::ImageData::Color(im) => (**im).clone(),
+                    egui::ImageData::Font(im) => egui::ColorImage {
+                        size: im.size,
+                        pixels: im.srgba_pixels(None).collect(),
+                    },
+                };
+                let data: Vec<u8> = im.pixels.iter().flat_map(|p| p.to_array()).collect();
+                let file = format!("texture-{frame}-{id}.rgba");
+                std::fs::write(path.join(&file), data).unwrap();
+                let pos = delta
+                    .pos
+                    .map(|p| format!("[{},{}]", p[0], p[1]))
+                    .unwrap_or("null".into());
+                texture_records.push(format!(
+                    "{{\"id\":{id},\"file\":\"{file}\",\"size\":[{},{}],\"pos\":{pos}}}",
+                    im.size[0], im.size[1]
+                ));
+            }
+            last = Some(out);
+        }
+        let out = last.unwrap();
+        let meshes = h.ctx.tessellate(out.shapes, out.pixels_per_point);
+        let mut records = vec![];
+        for primitive in meshes {
+            let egui::epaint::Primitive::Mesh(mesh) = primitive.primitive else {
+                panic!("Unexpected paint callback")
+            };
+            let egui::TextureId::Managed(id) = mesh.texture_id else {
+                panic!("Unexpected user texture")
+            };
+            let mut vertices = String::new();
+            for (i, v) in mesh.vertices.iter().enumerate() {
+                assert!(v.pos.x.is_finite() && v.pos.y.is_finite());
+                if i > 0 {
+                    vertices.push(',');
+                }
+                let c = v.color.to_array();
+                write!(
+                    vertices,
+                    "[{},{},{},{},{},{},{},{}]",
+                    v.pos.x, v.pos.y, v.uv.x, v.uv.y, c[0], c[1], c[2], c[3]
+                )
+                .unwrap();
+            }
+            let indices = mesh
+                .indices
+                .iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            let clip = primitive.clip_rect;
+            records.push(format!("{{\"texture\":{id},\"clip\":[{},{},{},{}],\"vertices\":[{vertices}],\"indices\":[{indices}]}}",clip.min.x,clip.min.y,clip.max.x,clip.max.y));
+        }
+        let json = format!(
+            "{{\"size\":[{},{}],\"textures\":[{}],\"meshes\":[{}]}}",
+            PANEL_SIZE.x * factor,
+            PANEL_SIZE.y * factor,
+            texture_records.join(","),
+            records.join(",")
+        );
+        std::fs::write(path.join("paint.json"), json).unwrap();
+    }
 }
