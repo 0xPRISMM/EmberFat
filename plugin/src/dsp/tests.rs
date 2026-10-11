@@ -44,23 +44,27 @@ fn dry_modes_preserve_headroom_and_exact_latency() {
 #[test]
 fn oversampling_latency_matches_the_dry_delay() {
     let kernel = Kernel::default();
-    let mut up1 = Fir::default();
-    let mut up2 = Fir::default();
-    let mut down2 = Fir::default();
-    let mut down1 = Fir::default();
+    let mut up = [Fir::default(), Fir::default(), Fir::default()];
+    let mut down = [Fir::default(), Fir::default(), Fir::default()];
     let mut output = vec![];
     for n in 0..256 {
-        let up = [
-            up1.tick(if n == 0 { 2.0 } else { 0.0 }, &kernel),
-            up1.tick(0.0, &kernel),
+        let first = [
+            up[0].tick(if n == 0 { 2.0 } else { 0.0 }, &kernel),
+            up[0].tick(0.0, &kernel),
         ];
-        let mut down = [0.0; 2];
-        for (i, x) in up.into_iter().enumerate() {
-            down[i] = down2.tick(up2.tick(x * 2.0, &kernel), &kernel);
-            down2.tick(up2.tick(0.0, &kernel), &kernel);
+        let mut lower = [0.0; 2];
+        for (i, x) in first.into_iter().enumerate() {
+            let middle = [up[1].tick(x * 2.0, &kernel), up[1].tick(0.0, &kernel)];
+            let mut upper = [0.0; 2];
+            for (j, x) in middle.into_iter().enumerate() {
+                upper[j] = down[2].tick(up[2].tick(x * 2.0, &kernel), &kernel);
+                down[2].tick(up[2].tick(0.0, &kernel), &kernel);
+            }
+            lower[i] = down[1].tick(upper[0], &kernel);
+            down[1].tick(upper[1], &kernel);
         }
-        output.push(down1.tick(down[0], &kernel));
-        down1.tick(down[1], &kernel);
+        output.push(down[0].tick(lower[0], &kernel));
+        down[0].tick(lower[1], &kernel);
     }
     let peak = output
         .iter()
@@ -68,10 +72,11 @@ fn oversampling_latency_matches_the_dry_delay() {
         .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
         .unwrap()
         .0;
-    assert_eq!(peak, LATENCY);
+    assert_eq!(peak, OVERSAMPLING_LATENCY);
+    assert_eq!(LATENCY, OVERSAMPLING_LATENCY + LOOKAHEAD);
     assert!((output.iter().sum::<f64>() - 1.0).abs() < 1e-7);
-    for i in 0..LATENCY {
-        assert!((output[i] - output[2 * LATENCY - i]).abs() < 1e-14);
+    for i in 0..OVERSAMPLING_LATENCY {
+        assert!((output[i] - output[2 * OVERSAMPLING_LATENCY - i]).abs() < 1e-14);
     }
 }
 
@@ -243,10 +248,6 @@ fn export_audio_validation_fixtures() {
     ] {
         let mut dsp = Dsp::new(48000.0, settings);
         let mut file = std::fs::File::create(path.join(format!("{name}.f32"))).unwrap();
-        let mut raw = std::fs::File::create(path.join(format!("{name}-1x.f64"))).unwrap();
-        let mut raw_dc = 0.0;
-        let mut raw_prev = 0.0;
-        let mut raw_tone = 0.0;
         for n in 0..96000 {
             let actual = if name == "automation" && n >= 48000 {
                 Controls {
@@ -266,13 +267,6 @@ fn export_audio_validation_fixtures() {
             };
             let y = tick(&mut dsp, x as f32, x as f32)[0];
             file.write_all(&y.to_le_bytes()).unwrap();
-            let residual = Shape::new(actual.fat, actual.color).residual(x);
-            raw_dc = residual - raw_prev + dsp.dc_pole * raw_dc;
-            raw_prev = residual;
-            let pole = dsp.bright_pole + actual.color * (dsp.dark_pole - dsp.bright_pole);
-            raw_tone = (1.0 - pole) * raw_dc + pole * raw_tone;
-            raw.write_all(&((x + raw_tone) * actual.gain).to_le_bytes())
-                .unwrap();
         }
     }
     let mut dsp = Dsp::new(48000.0, controls());
@@ -285,4 +279,163 @@ fn export_audio_validation_fixtures() {
     let elapsed = start.elapsed().as_secs_f64();
     println!("DSP_BENCH: 10 seconds stereo / {elapsed:.4} seconds CPU; checksum={checksum}");
     std::fs::write(path.join("benchmark.txt"), format!("{elapsed:.6}\n")).unwrap();
+}
+
+#[test]
+fn compressor_reduces_dynamic_range_and_links_stereo() {
+    for rate in [44100.0, 48000.0, 96000.0] {
+        let mut c = Compressor::new(rate);
+        let mut quiet = 1.0;
+        for _ in 0..rate as usize {
+            quiet = c.gain([0.02, 0.0], 1.0);
+        }
+        let mut loud = 1.0;
+        for _ in 0..rate as usize {
+            loud = c.gain([0.0, 0.8], 1.0);
+        }
+        assert!(quiet > 0.99);
+        assert!(loud < 0.07, "loud gain={loud}");
+        let linked = c.gain([0.8, 0.02], 1.0);
+        let swapped = c.gain([0.02, 0.8], 1.0);
+        assert!((linked - swapped).abs() < 1e-10);
+        assert_eq!(c.gain([0.8, 0.8], 0.0), 1.0);
+    }
+}
+
+#[test]
+fn maximum_fat_peak_control_is_bounded_and_output_can_boost_it() {
+    for rate in [44100.0, 48000.0, 96000.0] {
+        let mut limiter = PeakControl::new(rate);
+        for n in 0..4096 {
+            let wet = [
+                if n % 17 == 0 {
+                    12.0
+                } else {
+                    (n as f64 * 0.17).sin() * 2.0
+                },
+                (n as f64 * 0.37).sin() * 3.0,
+            ];
+            let (_, limited) = limiter.tick([0.0; 2], wet, 1.0);
+            assert!(limited.iter().all(|x| x.abs() <= 1.0 + 1e-12));
+        }
+    }
+    let settings = Controls {
+        fat: 1.0,
+        color: 1.0,
+        gain: 1.0,
+        ..controls()
+    };
+    let mut unity = Dsp::new(48000.0, settings);
+    let mut boosted = Dsp::new(
+        48000.0,
+        Controls {
+            gain: 10.0_f64.powf(24.0 / 20.0),
+            ..settings
+        },
+    );
+    let mut peak = 0.0_f32;
+    for n in 0..96000 {
+        let x = (0.7 * (TAU * 97.0 * n as f64 / 48000.0).sin()) as f32;
+        let a = tick(&mut unity, x, x)[0];
+        let b = tick(&mut boosted, x, x)[0];
+        assert!(a.abs() <= 1.000001);
+        assert!(
+            (f64::from(b) - f64::from(a) * settings.gain * 10.0_f64.powf(24.0 / 20.0)).abs() < 2e-6
+        );
+        peak = peak.max(b.abs());
+    }
+    assert!(
+        peak > 10.0,
+        "OUTPUT boost must not be undone by internal limiting"
+    );
+}
+
+#[test]
+fn fat_increases_loudness_and_density_on_quiet_bass() {
+    let mut rms = [0.0_f64; 4];
+    let mut crest = [0.0_f64; 4];
+    for (i, fat) in [0.0, 0.25, 0.5, 1.0].into_iter().enumerate() {
+        let mut dsp = Dsp::new(
+            48000.0,
+            Controls {
+                fat,
+                color: 0.28,
+                ..controls()
+            },
+        );
+        let mut peak = 0.0_f64;
+        for n in 0..96000 {
+            let x = (0.03 * (TAU * 100.0 * n as f64 / 48000.0).sin()) as f32;
+            let y = f64::from(tick(&mut dsp, x, x)[0]);
+            if n >= 48000 {
+                rms[i] += y * y;
+                peak = peak.max(y.abs());
+            }
+        }
+        rms[i] = (rms[i] / 48000.0).sqrt();
+        crest[i] = peak / rms[i];
+    }
+    assert!(rms.windows(2).all(|x| x[1] > x[0]), "RMS {rms:?}");
+    assert!(20.0 * (rms[3] / rms[0]).log10() > 25.0, "RMS {rms:?}");
+    assert!(crest[3] < crest[0] * 0.92, "crest {crest:?}");
+    println!("INTENSITY: quiet bass RMS {rms:?}; crest {crest:?}");
+}
+
+#[test]
+fn output_twenty_four_db_ramp_is_continuous() {
+    for rate in [44100.0, 48000.0, 96000.0] {
+        let settings = Controls {
+            fat: 0.0,
+            ..controls()
+        };
+        let mut dsp = Dsp::new(rate, settings);
+        let mut previous = 0.0;
+        for _ in 0..1024 {
+            previous = tick(&mut dsp, 0.2, 0.2)[0];
+        }
+        let gain = 10.0_f64.powf(24.0 / 20.0);
+        dsp.set_controls(Controls { gain, ..settings });
+        let bound = 0.2 * (gain - 1.0) / (rate * 0.020).round();
+        for _ in 0..(rate * 0.030) as usize {
+            let next = tick(&mut dsp, 0.2, 0.2)[0];
+            assert!(f64::from((next - previous).abs()) <= bound * 1.001);
+            previous = next;
+        }
+        assert!((f64::from(previous) - 0.2 * gain).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn color_increases_brightness_instead_of_darkening() {
+    let mut amplitude = [[0.0_f64; 2]; 2];
+    for (i, color) in [0.0, 1.0].into_iter().enumerate() {
+        for (j, frequency) in [600.0, 6000.0].into_iter().enumerate() {
+            let mut dsp = Dsp::new(
+                48000.0,
+                Controls {
+                    fat: 0.3,
+                    color,
+                    ..controls()
+                },
+            );
+            let mut re = 0.0;
+            let mut im = 0.0;
+            for n in 0..96000 {
+                let phase = TAU * frequency * n as f64 / 48000.0;
+                let y = f64::from(tick(&mut dsp, (0.015 * phase.sin()) as f32, 0.0)[0]);
+                if n >= 48000 {
+                    re += y * phase.cos();
+                    im += y * phase.sin();
+                }
+            }
+            amplitude[i][j] = 2.0 * re.hypot(im) / 48000.0;
+        }
+    }
+    let warmth = amplitude[0][1] / amplitude[0][0];
+    let brightness = amplitude[1][1] / amplitude[1][0];
+    assert!(brightness > warmth * 1.15, "amplitudes={amplitude:?}");
+    println!(
+        "COLOR_HF_CHANGE_DB: {:.2}",
+        20.0 * (brightness / warmth).log10()
+    );
 }
