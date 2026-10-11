@@ -1,7 +1,9 @@
 //! EmberFat's original saturation engine. No allocation, locks, or host calls in processing.
 use std::f64::consts::{PI, TAU};
 
-pub const LATENCY: usize = 48;
+const OVERSAMPLING_LATENCY: usize = 56;
+const LOOKAHEAD: usize = 24;
+pub const LATENCY: usize = OVERSAMPLING_LATENCY + LOOKAHEAD;
 
 #[derive(Clone, Copy)]
 pub struct Controls {
@@ -52,7 +54,7 @@ impl Ramp {
 
 // A 65-tap Blackman-windowed half-band FIR, designed here from the sinc equation.
 // Symmetric tap pairs avoid multiplying the zero coefficients. Each 2x stage
-// delays by 16 samples at its lower rate; two up/down stages total 48 base samples.
+// delays by 16 samples at its lower rate; three up/down stages total 56 base samples.
 struct Kernel {
     pairs: [f64; 16],
     center: f64,
@@ -114,13 +116,16 @@ impl Fir {
 struct Channel {
     up1: Fir,
     up2: Fir,
+    up3: Fir,
+    down3: Fir,
     down2: Fir,
     down1: Fir,
-    dry: [f64; LATENCY],
+    dry: [f64; OVERSAMPLING_LATENCY],
     dry_position: usize,
     previous_residual: f64,
     dc: f64,
     tone: f64,
+    emphasis_low: f64,
 }
 
 impl Default for Channel {
@@ -128,13 +133,16 @@ impl Default for Channel {
         Self {
             up1: Fir::default(),
             up2: Fir::default(),
+            up3: Fir::default(),
+            down3: Fir::default(),
             down2: Fir::default(),
             down1: Fir::default(),
-            dry: [0.0; LATENCY],
+            dry: [0.0; OVERSAMPLING_LATENCY],
             dry_position: 0,
             previous_residual: 0.0,
             dc: 0.0,
             tone: 0.0,
+            emphasis_low: 0.0,
         }
     }
 }
@@ -143,29 +151,131 @@ struct Shape {
     drive: f64,
     bias: f64,
     zero: f64,
-    compensation: f64,
+    rounded_zero: f64,
+    hardness: f64,
     density: f64,
+    emphasis: f64,
+}
+
+fn rounded_clip(x: f64) -> f64 {
+    let x = x.clamp(-1.0, 1.0);
+    x * (1.5 - 0.5 * x * x)
 }
 
 impl Shape {
     fn new(fat: f64, color: f64) -> Self {
-        let drive = 1.0 + 7.0 * fat;
-        let bias = 0.25 * color * fat;
+        let bias = 0.12 * color * fat;
         Self {
-            drive,
+            // Do not normalize away the drive: FAT is meant to raise density
+            // and loudness. The linked compressor controls its dynamics.
+            drive: (1.0 + 3.0 * fat + 24.0 * fat * fat) * 10.0_f64.powf(10.0 * fat / 20.0),
             bias,
             zero: bias.tanh(),
-            compensation: 1.0 / (1.0 + 0.6 * (drive - 1.0)),
+            rounded_zero: rounded_clip(bias),
+            hardness: fat * fat * (0.25 + 0.75 * color),
             density: fat * (2.0 - fat),
+            emphasis: 1.5 * color * fat,
         }
     }
 
     fn residual(&self, input: f64) -> f64 {
-        // Bias generates genuine even harmonics; zero input still produces zero.
-        // FAT=0 is exactly transparent. Density and compensation prevent the old
-        // large small-signal boost while retaining a progressive soft knee.
-        self.density
-            * (((self.drive * input + self.bias).tanh() - self.zero) * self.compensation - input)
+        let driven = self.drive * input + self.bias;
+        let soft = driven.tanh() - self.zero;
+        let rounded = rounded_clip(driven) - self.rounded_zero;
+        self.density * (soft + self.hardness * (rounded - soft) - input)
+    }
+}
+
+struct Compressor {
+    envelope: f64,
+    attack: f64,
+    release: f64,
+}
+
+impl Compressor {
+    fn new(rate: f64) -> Self {
+        Self {
+            envelope: 0.0,
+            attack: (-1.0 / (0.002 * rate)).exp(),
+            release: (-1.0 / (0.080 * rate)).exp(),
+        }
+    }
+
+    fn gain(&mut self, inputs: [f64; 2], fat: f64) -> f64 {
+        // The louder channel controls both: compression never moves the stereo image.
+        let peak = inputs[0].abs().max(inputs[1].abs()).min(64.0);
+        let pole = if peak > self.envelope {
+            self.attack
+        } else {
+            self.release
+        };
+        self.envelope = peak + pole * (self.envelope - peak);
+        if self.envelope < 1e-30 {
+            self.envelope = 0.0;
+        }
+        let level = 20.0 * self.envelope.max(1e-12).log10();
+        let over = level - (-10.0 - 18.0 * fat);
+        let knee = 6.0;
+        let reduction = if over <= -knee / 2.0 {
+            0.0
+        } else if over >= knee / 2.0 {
+            over
+        } else {
+            (over + knee / 2.0).powi(2) / (2.0 * knee)
+        };
+        let ratio = 1.0 + 11.0 * fat;
+        10.0_f64.powf(-reduction * (1.0 - 1.0 / ratio) / 20.0)
+    }
+}
+
+struct PeakControl {
+    dry: [[f64; 2]; LOOKAHEAD],
+    wet: [[f64; 2]; LOOKAHEAD],
+    position: usize,
+    gain: f64,
+    attack: f64,
+    release: f64,
+}
+
+impl PeakControl {
+    fn new(rate: f64) -> Self {
+        Self {
+            dry: [[0.0; 2]; LOOKAHEAD],
+            wet: [[0.0; 2]; LOOKAHEAD],
+            position: 0,
+            gain: 1.0,
+            attack: (-1.0 / (0.0001 * rate)).exp(),
+            release: (-1.0 / (0.060 * rate)).exp(),
+        }
+    }
+
+    fn tick(&mut self, dry: [f64; 2], wet: [f64; 2], density: f64) -> ([f64; 2], [f64; 2]) {
+        let delayed_dry = self.dry[self.position];
+        let delayed_wet = self.wet[self.position];
+        self.dry[self.position] = dry;
+        self.wet[self.position] = wet;
+        self.position = (self.position + 1) % LOOKAHEAD;
+        // Peak control blends in with density: clean at FAT=0, +/-1 at FAT=100. Keep a
+        // fixed delay even when inactive, so mix/bypass/automation never comb-filter.
+        let ceiling = 1.0 / density.max(1e-30);
+        let current_peak = delayed_wet[0].abs().max(delayed_wet[1].abs());
+        let peak = self.wet.iter().fold(current_peak, |p, frame| {
+            p.max(frame[0].abs()).max(frame[1].abs())
+        });
+        let required = (ceiling / peak.max(ceiling)).min(1.0);
+        let pole = if required < self.gain {
+            self.attack
+        } else {
+            self.release
+        };
+        self.gain = required + pole * (self.gain - required);
+        // Final linked gain bound guarantees the maximum-FAT ceiling despite release
+        // and control changes. OUTPUT remains after peak control and can boost it.
+        self.gain = self.gain.min(ceiling / current_peak.max(ceiling));
+        (
+            delayed_dry,
+            delayed_wet.map(|x| x * (1.0 - density + density * self.gain)),
+        )
     }
 }
 
@@ -177,28 +287,45 @@ impl Channel {
         kernel: &Kernel,
         dc_pole: f64,
         tone_pole: f64,
+        emphasis_pole: f64,
+        color: f64,
     ) -> (f64, f64) {
         let dry = self.dry[self.dry_position];
         self.dry[self.dry_position] = input;
-        self.dry_position = (self.dry_position + 1) % LATENCY;
-
+        self.dry_position = (self.dry_position + 1) % OVERSAMPLING_LATENCY;
         let safe_input = input.clamp(-64.0, 64.0);
         let up = [
             self.up1.tick(safe_input * 2.0, kernel),
             self.up1.tick(0.0, kernel),
         ];
         let mut down = [0.0; 2];
-        for (index, value) in up.into_iter().enumerate() {
-            let first = self.up2.tick(value * 2.0, kernel);
-            let second = self.up2.tick(0.0, kernel);
-            down[index] = self.down2.tick(shape.residual(first), kernel);
-            self.down2.tick(shape.residual(second), kernel);
+        for (i, value) in up.into_iter().enumerate() {
+            let middle = [
+                self.up2.tick(value * 2.0, kernel),
+                self.up2.tick(0.0, kernel),
+            ];
+            let mut reduced = [0.0; 2];
+            for (j, value) in middle.into_iter().enumerate() {
+                let high = [
+                    self.up3.tick(value * 2.0, kernel),
+                    self.up3.tick(0.0, kernel),
+                ];
+                let mut residual = [0.0; 2];
+                for (k, x) in high.into_iter().enumerate() {
+                    self.emphasis_low = x + emphasis_pole * (self.emphasis_low - x);
+                    let colored = x + shape.emphasis * (x - self.emphasis_low);
+                    // Subtract the original interpolation, not the emphasized
+                    // input, so COLOR's added brightness remains in the wet path.
+                    residual[k] = shape.residual(colored) + shape.density * (colored - x);
+                }
+                reduced[j] = self.down3.tick(residual[0], kernel);
+                self.down3.tick(residual[1], kernel);
+            }
+            down[i] = self.down2.tick(reduced[0], kernel);
+            self.down2.tick(reduced[1], kernel);
         }
         let residual = self.down1.tick(down[0], kernel);
         self.down1.tick(down[1], kernel);
-
-        // Filter only added distortion: the delayed clean signal keeps its bass,
-        // phase and headroom. High-pass the asymmetric residual to remove DC.
         self.dc = residual - self.previous_residual + dc_pole * self.dc;
         self.previous_residual = residual;
         self.tone = (1.0 - tone_pole) * self.dc + tone_pole * self.tone;
@@ -208,13 +335,18 @@ impl Channel {
         if self.tone.abs() < 1e-30 {
             self.tone = 0.0;
         }
-        (dry, dry + self.tone)
+        if self.emphasis_low.abs() < 1e-30 {
+            self.emphasis_low = 0.0;
+        }
+        (dry, dry + self.tone + color * (self.dc - self.tone))
     }
 }
 
 pub struct Dsp {
     channels: [Channel; 2],
     kernel: Kernel,
+    compressor: Compressor,
+    peaks: PeakControl,
     fat: Ramp,
     color: Ramp,
     mix: Ramp,
@@ -223,8 +355,8 @@ pub struct Dsp {
     control_samples: usize,
     bypass_samples: usize,
     dc_pole: f64,
-    bright_pole: f64,
-    dark_pole: f64,
+    warm_pole: f64,
+    emphasis_pole: f64,
 }
 
 impl Dsp {
@@ -232,6 +364,8 @@ impl Dsp {
         let mut result = Self {
             channels: std::array::from_fn(|_| Channel::default()),
             kernel: Kernel::default(),
+            compressor: Compressor::new(sample_rate),
+            peaks: PeakControl::new(sample_rate),
             fat: Ramp::default(),
             color: Ramp::default(),
             mix: Ramp::default(),
@@ -240,8 +374,8 @@ impl Dsp {
             control_samples: (sample_rate * 0.020).round().max(1.0) as usize,
             bypass_samples: (sample_rate * 0.005).round().max(1.0) as usize,
             dc_pole: (-TAU * 10.0 / sample_rate).exp(),
-            bright_pole: (-TAU * 18000.0 / sample_rate).exp(),
-            dark_pole: (-TAU * 4000.0 / sample_rate).exp(),
+            warm_pole: (-TAU * 8000.0 / sample_rate).exp(),
+            emphasis_pole: (-TAU * 2500.0 / (sample_rate * 8.0)).exp(),
         };
         result.reset(controls);
         result
@@ -251,6 +385,11 @@ impl Dsp {
         for channel in &mut self.channels {
             *channel = Channel::default();
         }
+        self.compressor.envelope = 0.0;
+        self.peaks.dry.fill([0.0; 2]);
+        self.peaks.wet.fill([0.0; 2]);
+        self.peaks.position = 0;
+        self.peaks.gain = 1.0;
         self.fat.reset(controls.fat);
         self.color.reset(controls.color);
         self.mix.reset(controls.mix);
@@ -267,24 +406,41 @@ impl Dsp {
             .target(if controls.bypass { 0.0 } else { 1.0 }, self.bypass_samples);
     }
 
-    pub fn frame<'a>(&mut self, samples: impl Iterator<Item = &'a mut f32>) {
-        // Shared ramps advance once per frame, keeping left/right automation identical.
+    pub fn frame<'a>(&mut self, mut samples: impl Iterator<Item = &'a mut f32>) {
+        let refs: [Option<&mut f32>; 2] = std::array::from_fn(|_| samples.next());
+        let inputs: [f64; 2] = std::array::from_fn(|i| {
+            let value = refs[i].as_deref().copied().unwrap_or(0.0);
+            if value.is_finite() {
+                f64::from(value)
+            } else {
+                0.0
+            }
+        });
         let fat = self.fat.next();
         let color = self.color.next();
         let blend = self.mix.next() * self.active.next();
         let gain = self.gain.next();
-        let shape = Shape::new(fat, color);
-        let tone_pole = self.bright_pole + color * (self.dark_pole - self.bright_pole);
-        for (channel, sample) in self.channels.iter_mut().zip(samples) {
-            let input = if sample.is_finite() {
-                f64::from(*sample)
-            } else {
-                0.0
-            };
-            let (dry, wet) = channel.tick(input, &shape, &self.kernel, self.dc_pole, tone_pole);
-            // Continue the filters during bypass/MIX=0 so re-enabling has no stale tail.
-            let result = dry + blend * (wet * gain - dry);
-            *sample = result.clamp(-(f32::MAX as f64), f32::MAX as f64) as f32;
+        let mut shape = Shape::new(fat, color);
+        shape.drive *= self.compressor.gain(inputs, fat);
+        let mut dry = [0.0; 2];
+        let mut wet = [0.0; 2];
+        for (i, channel) in self.channels.iter_mut().enumerate() {
+            (dry[i], wet[i]) = channel.tick(
+                inputs[i],
+                &shape,
+                &self.kernel,
+                self.dc_pole,
+                self.warm_pole,
+                self.emphasis_pole,
+                color,
+            );
+        }
+        let (dry, wet) = self.peaks.tick(dry, wet, shape.density);
+        for (i, sample) in refs.into_iter().enumerate() {
+            if let Some(sample) = sample {
+                let result = dry[i] + blend * (wet[i] * gain - dry[i]);
+                *sample = result.clamp(-(f32::MAX as f64), f32::MAX as f64) as f32;
+            }
         }
     }
 }

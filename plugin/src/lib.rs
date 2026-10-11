@@ -70,7 +70,7 @@ impl Default for EmberFatParams {
                 -1.0,
                 FloatRange::Linear {
                     min: -18.0,
-                    max: 6.0,
+                    max: 24.0,
                 },
             )
             .with_unit(" dB")
@@ -162,8 +162,7 @@ impl Plugin for EmberFat {
 impl Vst3Plugin for EmberFat {
     const VST3_CLASS_ID: [u8; 16] = *b"EmberFatPlugin01";
 
-    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
-        &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
+    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Fx];
 }
 
 nih_export_vst3!(EmberFat);

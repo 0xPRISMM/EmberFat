@@ -6,18 +6,20 @@ EmberFat is a stereo saturation effect built with Rust and [NIH-plug](https://gi
 
 ![EmberFat interface](docs/emberfat-ui.png)
 
-## Audio processing in 0.2.0
+## Audio processing in 0.3.0
 
-Knob changes ramp over 20 ms; ACTIVE/BYPASSED crossfades over 5 ms. Host automation is sample accurate. An original soft saturation curve runs at 4x sample rate with FIR anti-alias filters. COLOR introduces asymmetric harmonics and softens the added distortion; DC filtering applies only to that distortion.
+FAT now adds stereo-linked compression, makeup gain and aggressive rounded clipping. Low settings remain usable for gentle thickening; high settings add much more density, harmonics and loudness. COLOR adds brightness and high-frequency drive. The original nonlinear processor runs at 8x sample rate with anti-alias filtering.
 
-FAT at zero is clean at unity OUTPUT. MIX at zero and BYPASSED preserve the original signal, including headroom. All paths have the same fixed 48-sample latency, reported to the host for delay compensation. OUTPUT still controls the wet signal before MIX.
+Knob changes ramp over 20 ms and bypass crossfades over 5 ms. Dry/wet and bypass paths share a fixed 80-sample latency, reported to the host. FAT=0 at unity OUTPUT, MIX=0 and bypass preserve the clean signal and its headroom.
 
-The revised gain compensation and curve change the sound of existing presets. Parameter IDs and the VST3 class ID remain stable. See the [DSP review and validation](docs/DSP_REVIEW.md) for measurements and comparisons.
+OUTPUT ranges from -18 to **+24 dB**, after progressive internal peak control and before MIX. The VST3 is classified as a general audio effect (Fx), with no Distortion subcategory.
+
+The stronger curve and extended OUTPUT range intentionally change existing settings. Parameter IDs and the VST3 class ID remain stable. See the [0.3.0 DSP review and measurements](docs/DSP_REVIEW_0_3.md), or the [earlier smoothing review](docs/DSP_REVIEW.md).
 
 ## Controls
 
-- FAT drive and saturation
-- COLOR harmonic character
+- FAT compression, loudness and saturation
+- COLOR brightness and harmonic character
 - MIX dry/wet blend
 - OUTPUT processed-signal level, before the dry/wet blend
 - ACTIVE/BYPASSED comparison and double-click reset
@@ -27,7 +29,7 @@ The revised gain compensation and curve change the sound of existing presets. Pa
 ## Download for Windows
 
 1. Open [GitHub Releases](https://github.com/0xPRISMM/EmberFat/releases/latest).
-2. Download `EmberFat-0.2.0-Windows-Setup.exe` and run it.
+2. Download `EmberFat-0.3.0-Windows-Setup.exe` and run it.
 3. Close your DAW before installing, choose the VST3 installation folder, then reopen the DAW and rescan plugins.
 
 The release also provides a VST3 ZIP for manual installation and SHA256 checksums for both downloads.
